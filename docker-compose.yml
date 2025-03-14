@@ -17,7 +17,26 @@ services:
     networks:
       - spark_network
 
+  postgres:
+    image: postgres:latest
+    container_name: postgres_db
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+      POSTGRES_DB: mspr3
+    ports:
+      - "15432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - spark_network
+
 networks:
   spark_network:
     driver: bridge
     name: spark_network
+
+volumes:
+  pg_data:
+    driver: local
