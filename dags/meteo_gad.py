@@ -1,0 +1,55 @@
+# dags/meteo_gad.py
+
+from datetime import datetime, timedelta
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+from airflow.operators.email import EmailOperator
+import sys
+sys.path.append('/opt/airflow/project')  # Pour pouvoir importer app.py depuis la racine
+
+from app import run  # Importe la fonction run() du script app.py
+
+default_args = {
+    'owner': 'Electro choc',
+    'depends_on_past': False,
+    'start_date': datetime(2023, 10, 1),
+    'email': ['v.mbanziladimbou@ecoles-epsi.net', 'lyes.boumrah@ecoles-epsi.net', 'belkis.coskun@ecoles-epsi.net', 'lucas.chipan@ecoles-epsi.net'],
+    'email_on_failure': True,
+    'email_on_retry': True,
+    'email_on_success': True,
+    
+    'retries': 1,
+    'retry_delay': timedelta(minutes=5),
+}
+
+dag = DAG(
+    'meteo_villes_pipeline',
+    default_args=default_args,
+    description='Pipeline météo & qualité d’air',
+    schedule_interval='48 10 * * *',  # Tous les jours à 08h06
+    catchup=False
+)
+
+
+
+
+execute_meteo_task = PythonOperator(
+    task_id='execute_meteo_script',
+    python_callable=run,
+    dag=dag
+)
+
+
+send_success_email = EmailOperator(
+    task_id='send_success_email',
+    to=['v.mbanziladimbou@ecoles-epsi.net', 'lyes.boumrah@ecoles-epsi.net', 'belkis.coskun@ecoles-epsi.net', 'lucas.chipan@ecoles-epsi.net'],
+    subject='Pipeline météo exécuté avec succès | {{ ds }}',
+    html_content="""
+    <h3>Le pipeline météo & qualité d'air s'est exécuté avec succès</h3>
+    <p>Date d'exécution: {{ ds }}</p>
+    <p>Heure d'exécution: {{ execution_date.strftime('%H:%M:%S') }}</p>
+    """,
+    dag=dag
+)
+
+execute_meteo_task >> send_success_email

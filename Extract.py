@@ -10,16 +10,17 @@ from datetime import datetime
 # Configuration PostgreSQL
 pg_config = {
     "host": "localhost",
-    "port": 15432,
+    "port": 5432,
     "database": "mspr3",
     "user": "admin",
-    "password": "admin123"
+    "password": "admin123",
+    "options": "-c client_encoding=UTF8"
 }
 
 # Requêtes SQL avec titres
 queries = [
     {
-        "title": "LISTE DES VILLES ENREGISTRÉES",
+        "title": "LISTE DES VILLES ENREGISTREES",
         "query": """
         SELECT nom, latitude, longitude FROM villes
         ORDER BY nom;
@@ -142,93 +143,115 @@ queries = [
     }
 ]
 
-def execute_query_to_df(conn, query):
-    """Exécute une requête SQL et retourne un DataFrame pandas"""
-    return pd.read_sql_query(query, conn)
-
-def create_report():
-    """Génère un rapport avec tous les résultats"""
+# Fonction pour exécuter une requête et récupérer un DataFrame
+def execute_query_to_df(query):
+    """Exécute une requête SQL et retourne un DataFrame pandas."""
     try:
         # Connexion à PostgreSQL
         conn = psycopg2.connect(**pg_config)
-        print("Connexion à PostgreSQL réussie")
         
-        # Créer un dossier pour les rapports dans l'emplacement spécifié
-        report_dir = r"C:\Users\lucas\OneDrive\Desktop\EPSI\MSPR BLOC 3\MSPR3\Files"
-        if not os.path.exists(report_dir):
-            os.makedirs(report_dir)
+        # Exécuter la requête
+        df = pd.read_sql_query(query, conn)
         
-        # Nom du fichier de rapport avec horodatage
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        report_file = os.path.join(report_dir, f"rapport_meteo_{timestamp}.txt")
-        
-        # Créer le rapport
-        with open(report_file, 'w', encoding='utf-8') as f:
-            f.write("=================================================================\n")
-            f.write("                RAPPORT MÉTÉO ET QUALITÉ DE L'AIR                \n")
-            f.write("=================================================================\n")
-            f.write(f"Date de génération: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n\n")
-            
-            # Exécuter chaque requête et écrire les résultats dans le fichier
-            for item in queries:
-                title = item["title"]
-                query = item["query"]
-                
-                # Exécution de la requête
-                df = execute_query_to_df(conn, query)
-                
-                # Ajout du titre et des résultats au rapport
-                f.write(f"\n{'=' * 65}\n")
-                f.write(f"{title.center(65)}\n")
-                f.write(f"{'=' * 65}\n\n")
-                
-                # Utiliser tabulate pour formater le tableau
-                table = tabulate(df, headers=df.columns, tablefmt="grid", showindex=False)
-                f.write(table)
-                f.write("\n\n")
-            
-            f.write("\n=================================================================\n")
-            f.write("                        FIN DU RAPPORT                          \n")
-            f.write("=================================================================\n")
-            
-        print(f"Rapport généré avec succès: {report_file}")
-        
-        # Génération d'un graphique pour la qualité de l'air
-        df_aqi = execute_query_to_df(conn, """
-            SELECT v.nom AS ville, qa.aqi AS indice_qualite_air
-            FROM qualite_air qa
-            JOIN villes v ON qa.ville_id = v.id
-            ORDER BY qa.aqi;
-        """)
-        
-        plt.figure(figsize=(12, 6))
-        sns.barplot(x='ville', y='indice_qualite_air', data=df_aqi)
-        plt.title('Indice de qualité de l\'air par ville')
-        plt.xticks(rotation=45, ha='right')
-        plt.tight_layout()
-        
-        # Sauvegarder le graphique
-        graph_file = os.path.join(report_dir, f"graphique_qualite_air_{timestamp}.png")
-        plt.savefig(graph_file)
-        print(f"Graphique généré avec succès: {graph_file}")
-        
-        # Fermeture de la connexion
+        # Fermer la connexion proprement
         conn.close()
         
-        return report_file
-        
-    except psycopg2.Error as e:
-        print(f"Erreur PostgreSQL: {e}")
-    except Exception as e:
-        print(f"Erreur inattendue: {e}")
-
-if __name__ == "__main__":
-    report_file = create_report()
+        # Ne pas manipuler l'encodage ici
+        return df
     
-    # Affichage d'un extrait du rapport dans le terminal
-    if report_file and os.path.exists(report_file):
-        with open(report_file, 'r', encoding='utf-8') as f:
-            content = f.read()
-            print("\nExtrait du rapport:")
-            print(content[:1000] + "...\n")
-            print(f"Rapport complet disponible dans le fichier: {report_file}")
+    except Exception as e:
+        print(f"Erreur lors de l'exécution de la requête : {e}")
+        return None
+
+# Exécuter une requête pour tester
+df_result = execute_query_to_df(queries[0]["query"])
+
+# Vérifier le résultat
+if df_result is not None:
+    print(df_result.head())
+# def create_report():
+#     """Génère un rapport avec tous les résultats"""
+#     try:
+#         # Connexion à PostgreSQL
+#         conn = psycopg2.connect(**pg_config)
+#         print("Connexion à PostgreSQL réussie")
+        
+#         # Créer un dossier pour les rapports dans l'emplacement spécifié
+#         report_dir = r"C:\Users\lucas\OneDrive\Desktop\EPSI\MSPR BLOC 3\MSPR3\Files"
+#         if not os.path.exists(report_dir):
+#             os.makedirs(report_dir)
+        
+#         # Nom du fichier de rapport avec horodatage
+#         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+#         report_file = os.path.join(report_dir, f"rapport_meteo_{timestamp}.txt")
+        
+#         # Créer le rapport
+#         with open(report_file, 'w', encoding='latin-1') as f:
+#             f.write("=================================================================\n")
+#             f.write("                RAPPORT MÉTÉO ET QUALITÉ DE L'AIR                \n")
+#             f.write("=================================================================\n")
+#             f.write(f"Date de génération: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n\n")
+            
+#             # Exécuter chaque requête et écrire les résultats dans le fichier
+#             for item in queries:
+#                 title = item["title"]
+#                 query = item["query"]
+                
+#                 # Exécution de la requête
+#                 df = execute_query_to_df(conn, query)
+                
+#                 # Ajout du titre et des résultats au rapport
+#                 f.write(f"\n{'=' * 65}\n")
+#                 f.write(f"{title.center(65)}\n")
+#                 f.write(f"{'=' * 65}\n\n")
+                
+#                 # Utiliser tabulate pour formater le tableau
+#                 table = tabulate(df, headers=df.columns, tablefmt="grid", showindex=False)
+#                 f.write(table)
+#                 f.write("\n\n")
+            
+#             f.write("\n=================================================================\n")
+#             f.write("                        FIN DU RAPPORT                          \n")
+#             f.write("=================================================================\n")
+            
+#         print(f"Rapport généré avec succès: {report_file}")
+        
+#         # Génération d'un graphique pour la qualité de l'air
+#         df_aqi = execute_query_to_df(conn, """
+#             SELECT v.nom AS ville, qa.aqi AS indice_qualite_air
+#             FROM qualite_air qa
+#             JOIN villes v ON qa.ville_id = v.id
+#             ORDER BY qa.aqi;
+#         """)
+        
+#         plt.figure(figsize=(12, 6))
+#         sns.barplot(x='ville', y='indice_qualite_air', data=df_aqi)
+#         plt.title('Indice de qualité de l\'air par ville')
+#         plt.xticks(rotation=45, ha='right')
+#         plt.tight_layout()
+        
+#         # Sauvegarder le graphique
+#         graph_file = os.path.join(report_dir, f"graphique_qualite_air_{timestamp}.png")
+#         plt.savefig(graph_file)
+#         print(f"Graphique généré avec succès: {graph_file}")
+        
+#         # Fermeture de la connexion
+#         conn.close()
+        
+#         return report_file
+        
+#     except psycopg2.Error as e:
+#         print(f"Erreur PostgreSQL: {e}")
+#     except Exception as e:
+#         print(f"Erreur inattendue: {e}")
+
+# if __name__ == "__main__":
+#     report_file = create_report()
+    
+#     # Affichage d'un extrait du rapport dans le terminal
+#     if report_file and os.path.exists(report_file):
+#         with open(report_file, 'r', encoding='utf-8') as f:
+#             content = f.read()
+#             print("\nExtrait du rapport:")
+#             print(content[:1000] + "...\n")
+#             print(f"Rapport complet disponible dans le fichier: {report_file}")

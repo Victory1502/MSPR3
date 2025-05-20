@@ -4,9 +4,9 @@ try:
     # Connexion à la base de données PostgreSQL
     connection = psycopg2.connect(
         host="localhost",
-        port=15432,
+        port=5432,
         database="mspr3",
-        user="admin",
+        user="localhost",
         password="admin123"
     )
     print("Connexion réussie !")
