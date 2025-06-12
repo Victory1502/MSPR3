@@ -7,7 +7,9 @@ from airflow.operators.email import EmailOperator
 import sys
 sys.path.append('/opt/airflow/project')  # Pour pouvoir importer app.py depuis la racine
 
-from app import run  # Importe la fonction run() du script app.py
+from extract import extract_and_store
+from transform import retrieve_and_display_complete
+from Load import load
 
 default_args = {
     'owner': 'Electro choc',
@@ -33,9 +35,22 @@ dag = DAG(
 
 
 
-execute_meteo_task = PythonOperator(
-    task_id='execute_meteo_script',
-    python_callable=run,
+# Tâches ETL
+extract_task = PythonOperator(
+    task_id='extract_data',
+    python_callable=extract_and_store,
+    dag=dag
+)
+
+transform_task = PythonOperator(
+    task_id='transform_data',
+    python_callable=retrieve_and_display_complete,
+    dag=dag
+)
+
+load_task = PythonOperator(
+    task_id='load_data',
+    python_callable=load,
     dag=dag
 )
 
@@ -52,4 +67,4 @@ send_success_email = EmailOperator(
     dag=dag
 )
 
-execute_meteo_task >> send_success_email
+extract_task >> transform_task >> load_task
