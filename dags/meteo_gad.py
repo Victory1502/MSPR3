@@ -1,11 +1,11 @@
-# dags/meteo_gad.py
-
 from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.operators.email import EmailOperator
 import sys
-sys.path.append('/opt/airflow/project')  # Pour pouvoir importer app.py depuis la racine
+import os
+
+sys.path.append('/opt/airflow/project') 
 
 from extract import extract_and_store
 from transform import retrieve_and_display_complete
@@ -28,7 +28,7 @@ dag = DAG(
     'meteo_villes_pipeline',
     default_args=default_args,
     description='Pipeline météo & qualité d’air',
-    schedule_interval='48 10 * * *',  # Tous les jours à 08h06
+    schedule_interval='@hourly',  # Tous les jours à 08h06
     catchup=False
 )
 
@@ -67,4 +67,4 @@ send_success_email = EmailOperator(
     dag=dag
 )
 
-extract_task >> transform_task >> load_task
+extract_task >> transform_task >> load_task >> send_success_email

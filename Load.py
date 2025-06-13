@@ -1,12 +1,11 @@
-# load.py
-
 import pandas as pd
 from sqlalchemy import create_engine
 
 def load():
     try:
-        csv_file = "donnees_completes.csv"  # Chemin absolu recommandé
-        engine = create_engine('postgresql+psycopg2://admin:admin123@localhost:15432/mspr3')
+        csv_file = "donnees_completes.csv"
+        # ✅ Utilisez le port interne 5432 au lieu de 15432
+        engine = create_engine('postgresql+psycopg2://admin:admin123@postgres:5432/mspr3')
 
         df = pd.read_csv(csv_file, encoding='utf-8-sig')
         df.columns = [
@@ -23,7 +22,6 @@ def load():
     except Exception as e:
         print(f"❌ Erreur lors du chargement des données : {e}")
         raise
-
 
 if __name__ == "__main__":
     load()

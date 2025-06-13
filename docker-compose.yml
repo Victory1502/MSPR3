@@ -18,6 +18,7 @@ services:
       - spark_network
 
   postgres:
+    hostname: postgres
     image: postgres:latest
     container_name: postgres_db
     restart: always
@@ -54,12 +55,15 @@ services:
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
       AIRFLOW_HOME: /opt/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
-    command: ["airflow", "db", "init"]
+    command: >
+      bash -c "pip install -r /requirements.txt && airflow db init"
     user: "0:0"
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
       - ./plugins:/opt/airflow/plugins
+      - .:/opt/airflow/project
+      - ./requirements.txt:/requirements.txt
     networks:
       - spark_network
 
@@ -74,12 +78,11 @@ services:
       AIRFLOW_HOME: /opt/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
       AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth'
-
-      
     ports:
       - "8080:8080"
-    command: webserver
     restart: always
+    command: >
+      bash -c "pip install -r /requirements.txt && airflow webserver"
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
       interval: 30s
@@ -89,6 +92,8 @@ services:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
       - ./plugins:/opt/airflow/plugins
+      - .:/opt/airflow/project
+      - ./requirements.txt:/requirements.txt
     networks:
       - spark_network
 
@@ -96,13 +101,12 @@ services:
     image: apache/airflow:2.7.1
     container_name: airflow-scheduler
     depends_on:
-      - airflow-webserver
+      - airflow-init
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
       AIRFLOW_HOME: /opt/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
-      # Configuration SMTP ajoutée ici
       AIRFLOW__SMTP__SMTP_HOST: smtp.gmail.com
       AIRFLOW__SMTP__SMTP_PORT: 587
       AIRFLOW__SMTP__SMTP_USER: victorycorporation15@gmail.com
@@ -110,21 +114,38 @@ services:
       AIRFLOW__SMTP__SMTP_MAIL_FROM: ELECTRO_CHOC@holding.com
       AIRFLOW__SMTP__SMTP_STARTTLS: 'True'
       AIRFLOW__SMTP__SMTP_SSL: 'False'
-    command: scheduler
     restart: always
+    command: >
+      bash -c "pip install -r /requirements.txt && airflow scheduler"
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
       - ./plugins:/opt/airflow/plugins
-      - ./app.py:/opt/airflow/project/app.py
-      - ./requirements.txt:/opt/airflow/requirements.txt
+      - .:/opt/airflow/project
+      - ./requirements.txt:/requirements.txt
+    networks:
+      - spark_network
+
+  airflow-cli:
+    image: apache/airflow:2.7.1
+    container_name: airflow-cli
+    entrypoint: bash
+    working_dir: /opt/airflow
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - .:/opt/airflow/project
+      - ./requirements.txt:/requirements.txt
     networks:
       - spark_network
 
 networks:
   spark_network:
     driver: bridge
-    name: spark_network
 
 volumes:
   pg_data:

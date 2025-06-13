@@ -44,7 +44,7 @@ def extract_and_store():
     try:
         log("Tentative de connexion à MinIO")
         minio_client = Minio(
-            "localhost:9000",  # Ajustez si nécessaire à localhost:9000
+            "minio:9000",  # Ajustez si nécessaire à localhost:9000
             access_key="minio",
             secret_key="minio123",
             secure=False
