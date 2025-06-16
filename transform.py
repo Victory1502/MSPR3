@@ -24,7 +24,7 @@ def retrieve_and_display_complete():
     try:
         log("Connexion à MinIO sur localhost:9000")
         minio_client = Minio(
-            "minio:9000",
+            "localhost:9000",
             access_key="minio",
             secret_key="minio123",
             secure=False

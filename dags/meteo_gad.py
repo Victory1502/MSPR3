@@ -55,16 +55,17 @@ load_task = PythonOperator(
 )
 
 
-send_success_email = EmailOperator(
-    task_id='send_success_email',
-    to=['v.mbanziladimbou@ecoles-epsi.net', 'lyes.boumrah@ecoles-epsi.net', 'belkis.coskun@ecoles-epsi.net', 'lucas.chipan@ecoles-epsi.net'],
-    subject='Pipeline météo exécuté avec succès | {{ ds }}',
-    html_content="""
-    <h3>Le pipeline météo & qualité d'air s'est exécuté avec succès</h3>
-    <p>Date d'exécution: {{ ds }}</p>
-    <p>Heure d'exécution: {{ execution_date.strftime('%H:%M:%S') }}</p>
-    """,
-    dag=dag
-)
+# send_success_email = EmailOperator(
+#     task_id='send_success_email',
+#     to=['v.mbanziladimbou@ecoles-epsi.net', 'lyes.boumrah@ecoles-epsi.net', 'belkis.coskun@ecoles-epsi.net', 'lucas.chipan@ecoles-epsi.net'],
+#     subject='Pipeline météo exécuté avec succès | {{ ds }}',
+#     html_content="""
+#     <h3>Le pipeline météo & qualité d'air s'est exécuté avec succès</h3>
+#     <p>Date d'exécution: {{ ds }}</p>
+#     <p>Heure d'exécution: {{ execution_date.strftime('%H:%M:%S') }}</p>
+#     """,
+#     dag=dag
+# )
 
-extract_task >> transform_task >> load_task >> send_success_email
+extract_task >> transform_task >> load_task 
+# >> send_success_email
