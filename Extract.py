@@ -9,6 +9,21 @@ from datetime import datetime
 import sys
 import os
 
+
+
+
+import psutil
+import time
+
+def collect_system_metrics():
+    return {
+        "cpu_usage": psutil.cpu_percent(),
+        "memory_usage": psutil.virtual_memory().percent,
+        "disk_usage": psutil.disk_usage('/').percent,
+        "network_io": psutil.net_io_counters()._asdict(),
+        "timestamp": datetime.now()
+    }
+
 def log(message):
     print(f"[INFO] {message}")
     sys.stdout.flush()
