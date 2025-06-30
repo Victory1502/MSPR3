@@ -13,6 +13,8 @@ sys.path.append('/opt/airflow/project')
 from extract import extract_and_store
 from transform import retrieve_and_display_complete
 from Load import load
+from
+
 
 # =====================================
 # NOUVELLES FONCTIONS ML
@@ -440,3 +442,26 @@ collectant et traitant les données de qualité d'air et météorologiques des p
 ## 👥 Équipe
 Electro Choc - Certification Expert Ingénierie des Données (BLOC 3)
 """
+
+
+
+# dag aevec pyspark 
+
+
+dag1 = DAG(
+    'meteo_dag_with_spark',
+    default_args=default_args,
+    description='Pipeline météo & qualité d\'air avec ML optimisé pour GoodAir',
+    schedule_interval='@hourly',
+    catchup=False,
+    tags=['goodair', 'machine-learning', 'etl', 'bloc3']
+)
+
+
+
+transform_task_enhanced = PythonOperator(
+    task_id='transform_data_with_ml',
+    python_callable=transfo,
+    dag=dag1,
+    doc_md="Transformation des données avec monitoring ML des performances"
+)

@@ -49,7 +49,7 @@ def load():
             engine = create_engine('postgresql+psycopg2://admin:admin123@localhost:15432/mspr3')
 
         # 🌐 Connexion cloud (identique dans les deux environnements)
-        engine_cloud = create_engine('postgresql://mspr3_owner:npg_gIMFn84DuBpH@ep-curly-bread-abg9804h-pooler.eu-west-2.aws.neon.tech/mspr3?sslmode=require')
+        engine_cloud = create_engine('postgresql://admin@example.com:admin123@http://158.178.196.156/pgadmin/pgadmin/browser/mspr3')
 
         # 📊 Chargement et traitement des données
         print(f"📖 Lecture du fichier CSV : {csv_file}")

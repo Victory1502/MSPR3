@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 class EnhancedPipelineLoadPredictor:
     def __init__(self, model_type='ensemble'):
-        """
+        """  
         Initialiseur avec choix de modèle
         model_type: 'rf', 'gb', 'ensemble', 'linear'
         """

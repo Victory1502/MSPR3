@@ -143,11 +143,40 @@ services:
     networks:
       - spark_network
 
+
+
+
+grafana:
+    image: grafana/grafana:latest
+    container_name: grafana-goodair
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=goodair123
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-worldmap-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    networks:
+      - spark_network
+    depends_on:
+      - postgres
+
+
+
 networks:
   spark_network:
     driver: bridge
 
+
+
+
+
 volumes:
+  grafana_data:
+    driver: local
   pg_data:
     driver: local
   airflow_postgres_data:
