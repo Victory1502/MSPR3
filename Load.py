@@ -48,15 +48,13 @@ def load():
             print("💻 Environnement local détecté")
             engine = create_engine('postgresql+psycopg2://admin:admin123@localhost:15432/mspr3')
 
-        # 🌐 Connexion cloud (identique dans les deux environnements)
-        engine_cloud = create_engine('postgresql://admin@example.com:admin123@http://158.178.196.156/pgadmin/pgadmin/browser/mspr3')
-
         # 📊 Chargement et traitement des données
         print(f"📖 Lecture du fichier CSV : {csv_file}")
         df = pd.read_csv(csv_file, encoding='utf-8-sig')
         
         print(f"📈 Données chargées : {len(df)} lignes, {len(df.columns)} colonnes")
         
+        # Renommage des colonnes pour la base de données
         df.columns = [
             'ville', 'latitude', 'longitude', 'timestamp_meteo',
             'temperature_k', 'temperature_c', 'temperature_ressentie_k', 'temperature_ressentie_c',
@@ -73,14 +71,42 @@ def load():
         except Exception as e:
             print(f"⚠️ Erreur lors du chargement en base locale/docker : {e}")
 
-        # 🌐 Sauvegarde en base cloud
-        try:
-            df.to_sql('meteo_air_quality', engine_cloud, if_exists='append', index=False)
-            print("✅ Données chargées dans la base cloud avec succès.")
-        except Exception as e:
-            print(f"⚠️ Erreur lors du chargement en base cloud : {e}")
+        # 🌐 Connexions distantes - Configurations multiples à tester
+        distant_configs = [
+            {
+                'name': 'VPS/Cloud (utilisateur admin)',
+                'url': 'postgresql+psycopg2://admin:admin123@34.155.198.167:5432/mspr3'
+            },
+            {
+                'name': 'VPS/Cloud (utilisateur postgres)',
+                'url': 'postgresql+psycopg2://postgres:admin123@34.155.198.167:5432/mspr3'
+            },
+            {
+                'name': 'VPS/Cloud (mot de passe alternatif)',
+                'url': 'postgresql+psycopg2://postgres:password@34.155.198.167:5432/mspr3'
+            }
+        ]
+        
+        # Test de chaque configuration
+        success = False
+        for config in distant_configs:
+            try:
+                engine_distant = create_engine(config['url'])
+                df.to_sql('meteo_air_quality', engine_distant, if_exists='append', index=False)
+                print(f"✅ Données chargées dans {config['name']} avec succès.")
+                success = True
+                break  # Si ça marche, on s'arrête
+            except Exception as e:
+                print(f"⚠️ Échec {config['name']} : {str(e)[:100]}...")
+        
+        if not success:
+            print("❌ Toutes les tentatives de connexion distante ont échoué.")
+            print("💡 Vérifiez :")
+            print("   - Les identifiants de connexion")
+            print("   - L'accessibilité du serveur (firewall/VPN)")
+            print("   - La configuration PostgreSQL")
             
-        print("🎉 Processus de chargement terminé avec succès!")
+        print("🎉 Processus de chargement terminé!")
 
     except Exception as e:
         print(f"❌ Erreur fatale lors du chargement des données : {e}")
@@ -108,7 +134,32 @@ def debug_environment():
         except:
             print("   Impossible de lister les fichiers")
 
+def test_connection():
+    """Tester uniquement la connexion à la base distante"""
+    configs = [
+        'postgresql+psycopg2://admin:admin123@158.178.196.156:5432/mspr3',
+        'postgresql+psycopg2://postgres:admin123@158.178.196.156:5432/mspr3',
+        'postgresql+psycopg2://admin:password@158.178.196.156:5432/mspr3'
+    ]
+    
+    for i, config in enumerate(configs, 1):
+        try:
+            engine = create_engine(config)
+            connection = engine.connect()
+            connection.close()
+            print(f"✅ Configuration {i} : Connexion réussie")
+            return config
+        except Exception as e:
+            print(f"❌ Configuration {i} : {str(e)[:100]}...")
+    
+    return None
+
 if __name__ == "__main__":
+    # Décommentez pour tester uniquement la connexion
+    # print("🔍 Test des connexions...")
+    # test_connection()
+    
     # Décommentez la ligne suivante pour déboguer l'environnement
     # debug_environment()
+    
     load()

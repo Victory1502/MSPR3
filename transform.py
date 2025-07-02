@@ -24,7 +24,7 @@ def retrieve_and_display_complete():
     try:
         log("Connexion à MinIO sur localhost:9000")
         minio_client = Minio(
-            "localhost:9000",
+            "minio:9000",
             access_key="minio",
             secret_key="minio123",
             secure=False
@@ -42,17 +42,30 @@ def retrieve_and_display_complete():
         log(f"Nombre d'objets trouvés: {len(objects)}")
         
         # Filtrer pour ne garder que les fichiers all_cities ou les fichiers individuels de villes
-        city_files = [obj.object_name for obj in objects if "all_cities_" in obj.object_name or "_2025_" in obj.object_name]
-        log(f"Nombre de fichiers potentiels trouvés: {len(city_files)}")
+        # ET créer une liste avec les dates de modification
+        city_objects = []
+        for obj in objects:
+            if "all_cities_" in obj.object_name or "_2025_" in obj.object_name:
+                city_objects.append((obj.object_name, obj.last_modified))
         
-        if not city_files:
+        log(f"Nombre de fichiers potentiels trouvés: {len(city_objects)}")
+        
+        if not city_objects:
             log("Aucun fichier de données trouvé")
             return
         
-        # Trier par date pour obtenir le plus récent
-        city_files.sort(reverse=True)
-        latest_file = city_files[0]
-        log(f"Fichier le plus récent: {latest_file}")
+        # Trier par date de modification (le plus récent en premier)
+        city_objects.sort(key=lambda x: x[1], reverse=True)
+        
+        # Afficher les fichiers trouvés pour debug
+        log("Fichiers trouvés (par ordre de modification):")
+        for filename, last_modified in city_objects[:5]:  # Afficher les 5 plus récents
+            log(f"  - {filename} (modifié: {last_modified})")
+        
+        latest_file = city_objects[0][0]
+        latest_modified = city_objects[0][1]
+        log(f"Fichier le plus récent sélectionné: {latest_file}")
+        log(f"Date de modification: {latest_modified}")
         
         # Télécharger le contenu du fichier
         data = minio_client.get_object(bucket_name, latest_file)
@@ -69,6 +82,7 @@ def retrieve_and_display_complete():
             timestamp = file_json.get("timestamp_extraction", "N/A")
         
         log(f"Données récupérées pour {len(city_data_list)} villes")
+        log(f"Timestamp des données: {timestamp}")
         
         # Créer un DataFrame pandas avec toutes les colonnes demandées
         cities_data = []
@@ -135,6 +149,7 @@ def retrieve_and_display_complete():
         # Affichage des données par catégorie sous forme de tableau
         print("\n" + "="*100)
         print(f"DONNÉES COMPLÈTES - {timestamp}")
+        print(f"Fichier source: {latest_file}")
         print("="*100)
         
         # 1. Informations de base
