@@ -1,8 +1,12 @@
+version: '3.8'
+
 services:
+  # ===== MINIO - Object Storage =====
   minio:
     hostname: minio
     image: "minio/minio"
     container_name: minio
+    restart: always
     ports:
       - "9001:9001"
       - "9000:9000"
@@ -14,7 +18,13 @@ services:
       - MINIO_ROOT_PASSWORD=minio123
     networks:
       - goodair_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
 
+  # ===== POSTGRESQL Principal =====
   postgres:
     hostname: postgres
     image: postgres:latest
@@ -30,10 +40,19 @@ services:
       - pg_data:/var/lib/postgresql/data
     networks:
       - goodair_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d mspr3"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
+  # ===== AIRFLOW SERVICES =====
+  
+  # Base de données PostgreSQL pour Airflow
   airflow-postgres:
     image: postgres:13
     container_name: airflow-postgres
+    restart: always
     environment:
       POSTGRES_USER: airflow
       POSTGRES_PASSWORD: airflow
@@ -42,19 +61,46 @@ services:
       - airflow_postgres_data:/var/lib/postgresql/data
     networks:
       - goodair_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
+  # Initialisation d'Airflow
   airflow-init:
     image: apache/airflow:2.7.1
     container_name: airflow-init
     depends_on:
-      - airflow-postgres
+      airflow-postgres:
+        condition: service_healthy
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
       AIRFLOW_HOME: /opt/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      # Configuration ESSENTIELLE pour le reverse proxy
+      AIRFLOW__WEBSERVER__BASE_URL: http://34.155.198.167/airflow
+      AIRFLOW__WEBSERVER__ENABLE_PROXY_FIX: 'True'
+      # Configuration de sécurité
+      AIRFLOW__CORE__FERNET_KEY: 'YlCImzjge_TeZc7jPJ7Jz2u4tvFl6zUNUTpBUy5HdKo='
     command: >
-      bash -c "pip install -r /requirements.txt && airflow db init"
+      bash -c "
+        if [ ! -f /requirements.txt ]; then
+          touch /requirements.txt
+        fi
+        pip install -r /requirements.txt
+        airflow db init
+        airflow users create \
+          --username admin \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email admin@example.com \
+          --password admin
+        echo 'Initialisation Airflow terminée'
+      "
     user: "0:0"
     volumes:
       - ./dags:/opt/airflow/dags
@@ -65,6 +111,7 @@ services:
     networks:
       - goodair_network
 
+  # Serveur web Airflow
   airflow-webserver:
     image: apache/airflow:2.7.1
     container_name: airflow-webserver
@@ -75,17 +122,35 @@ services:
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
       AIRFLOW_HOME: /opt/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
       AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth'
+      # Configuration CRITIQUE pour le reverse proxy
+      AIRFLOW__WEBSERVER__BASE_URL: http://34.155.198.167/airflow
+      AIRFLOW__WEBSERVER__ENABLE_PROXY_FIX: 'True'
+      AIRFLOW__WEBSERVER__WEB_SERVER_PORT: 8080
+      AIRFLOW__WEBSERVER__WEB_SERVER_HOST: 0.0.0.0
+      # Configuration additionnelle pour les ressources statiques
+      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: 'True'
+      AIRFLOW__CORE__HOSTNAME_CALLABLE: 'airflow.utils.net.get_host_ip_address'
+      # Configuration de sécurité
+      AIRFLOW__CORE__FERNET_KEY: 'YlCImzjge_TeZc7jPJ7Jz2u4tvFl6zUNUTpBUy5HdKo='
     ports:
       - "8080:8080"
     restart: always
     command: >
-      bash -c "pip install -r /requirements.txt && airflow webserver"
+      bash -c "
+        if [ ! -f /requirements.txt ]; then
+          touch /requirements.txt
+        fi
+        pip install -r /requirements.txt
+        airflow webserver
+      "
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 30s
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
@@ -95,6 +160,7 @@ services:
     networks:
       - goodair_network
 
+  # Planificateur Airflow
   airflow-scheduler:
     image: apache/airflow:2.7.1
     container_name: airflow-scheduler
@@ -105,6 +171,8 @@ services:
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
       AIRFLOW_HOME: /opt/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      # Configuration email (corrigée)
       AIRFLOW__SMTP__SMTP_HOST: smtp.gmail.com
       AIRFLOW__SMTP__SMTP_PORT: 587
       AIRFLOW__SMTP__SMTP_USER: victorycorporation15@gmail.com
@@ -112,9 +180,20 @@ services:
       AIRFLOW__SMTP__SMTP_MAIL_FROM: ELECTRO_CHOC@holding.com
       AIRFLOW__SMTP__SMTP_STARTTLS: 'True'
       AIRFLOW__SMTP__SMTP_SSL: 'False'
+      # Configuration pour le reverse proxy
+      AIRFLOW__WEBSERVER__BASE_URL: http://34.155.198.167/airflow
+      AIRFLOW__WEBSERVER__ENABLE_PROXY_FIX: 'True'
+      # Configuration de sécurité
+      AIRFLOW__CORE__FERNET_KEY: 'YlCImzjge_TeZc7jPJ7Jz2u4tvFl6zUNUTpBUy5HdKo='
     restart: always
     command: >
-      bash -c "pip install -r /requirements.txt && airflow scheduler"
+      bash -c "
+        if [ ! -f /requirements.txt ]; then
+          touch /requirements.txt
+        fi
+        pip install -r /requirements.txt
+        airflow scheduler
+      "
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
@@ -123,7 +202,13 @@ services:
       - ./requirements.txt:/requirements.txt
     networks:
       - goodair_network
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type SchedulerJob --hostname "$${HOSTNAME}"']
+      interval: 10s
+      timeout: 10s
+      retries: 5
 
+  # CLI Airflow (optionnel)
   airflow-cli:
     image: apache/airflow:2.7.1
     container_name: airflow-cli
@@ -132,6 +217,9 @@ services:
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
+      AIRFLOW__WEBSERVER__BASE_URL: http://34.155.198.167/airflow
+      AIRFLOW__WEBSERVER__ENABLE_PROXY_FIX: 'True'
+      AIRFLOW__CORE__FERNET_KEY: 'YlCImzjge_TeZc7jPJ7Jz2u4tvFl6zUNUTpBUy5HdKo='
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
@@ -140,16 +228,23 @@ services:
       - ./requirements.txt:/requirements.txt
     networks:
       - goodair_network
+    profiles:
+      - donotstart  # Ne démarre pas automatiquement
 
+  # ===== GRAFANA - Monitoring =====
   grafana:
     image: grafana/grafana:latest
     container_name: grafana-goodair
+    restart: always
     ports:
       - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=goodair123
       - GF_SECURITY_ADMIN_USER=admin
       - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-worldmap-panel
+      # Configuration pour reverse proxy (optionnel)
+      - GF_SERVER_ROOT_URL=http://34.155.198.167/grafana/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning
@@ -157,16 +252,23 @@ services:
     networks:
       - goodair_network
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
 
   # ===== ELASTICSEARCH & KIBANA =====
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
     container_name: elasticsearch
+    restart: always
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - bootstrap.memory_lock=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
     ports:
       - "9200:9200"
       - "9300:9300"
@@ -174,23 +276,38 @@ services:
       - elasticsearch_data:/usr/share/elasticsearch/data
     networks:
       - goodair_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
   kibana:
     image: docker.elastic.co/kibana/kibana:8.11.0
     container_name: kibana
+    restart: always
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - SERVER_BASEPATH=/kibana
+      - SERVER_REWRITEBASEPATH=true
     ports:
       - "5601:5601"
     depends_on:
-      - elasticsearch
+      elasticsearch:
+        condition: service_healthy
     networks:
       - goodair_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5601/api/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
-  # ===== SIMPLE DATA LINEAGE avec Marquez =====
+  # ===== DATA LINEAGE avec Marquez =====
   marquez-db:
     image: postgres:12
     container_name: marquez-db
+    restart: always
     environment:
       - POSTGRES_USER=marquez
       - POSTGRES_PASSWORD=marquez
@@ -199,10 +316,16 @@ services:
       - marquez_data:/var/lib/postgresql/data
     networks:
       - goodair_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marquez"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   marquez:
     image: marquezproject/marquez:0.45.0
     container_name: marquez
+    restart: always
     environment:
       - MARQUEZ_DB_HOST=marquez-db
       - MARQUEZ_DB_PORT=5432
@@ -213,25 +336,37 @@ services:
       - "3001:3001"
       - "5000:5000"
     depends_on:
-      - marquez-db
+      marquez-db:
+        condition: service_healthy
     networks:
       - goodair_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/api/v1/namespaces || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
-  # ===== SIMPLE DATA CATALOG avec Apache Atlas alternatif =====
-  # Utilisation d'Amundsen comme alternative plus légère
+  # ===== DATA CATALOG avec Amundsen =====
   amundsen-metadata:
     image: amundsendev/amundsen-metadata:3.0.0
     container_name: amundsen-metadata
+    restart: always
     environment:
       - METADATA_SVC_CONFIG_MODULE_CLASS=metadata_service.config.LocalConfig
     ports:
       - "5002:5000"
     networks:
       - goodair_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/healthcheck || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
   amundsen-frontend:
     image: amundsendev/amundsen-frontend:3.0.0
     container_name: amundsen-frontend
+    restart: always
     environment:
       - SEARCHSERVICE_BASE=http://amundsen-search:5000
       - METADATASERVICE_BASE=http://amundsen-metadata:5000
@@ -241,11 +376,17 @@ services:
       - amundsen-metadata
     networks:
       - goodair_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/healthcheck || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
-  # ===== APACHE NIFI version stable =====
+  # ===== APACHE NIFI - Data Processing =====
   nifi:
     image: apache/nifi:1.18.0
     container_name: nifi
+    restart: always
     ports:
       - "8443:8443"
       - "8083:8080"
@@ -254,12 +395,20 @@ services:
       - NIFI_WEB_HTTPS_PORT=8443
       - SINGLE_USER_CREDENTIALS_USERNAME=admin
       - SINGLE_USER_CREDENTIALS_PASSWORD=goodair123456
+      # Configuration pour reverse proxy
+      - NIFI_WEB_PROXY_CONTEXT_PATH=/nifi
     volumes:
       - nifi_data:/opt/nifi/nifi-current/logs
       - nifi_conf:/opt/nifi/nifi-current/conf
       - ./nifi/templates:/opt/nifi/nifi-current/conf/templates
     networks:
       - goodair_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/nifi/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
 networks:
   goodair_network:
